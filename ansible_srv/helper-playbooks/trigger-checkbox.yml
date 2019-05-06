@@ -1,0 +1,53 @@
+---
+- hosts: all
+  gather_facts: no
+  become : yes
+  vars_files:
+    - /ansible_srv/variables.yml
+  tasks:
+  - name: Run Python script to generate random files
+    script: /ansible_srv/deploy/generateRandomFile.py
+    args:
+      executable: python3
+      chdir: /home/vagrant/
+  - name: commit to fuzzer branch
+    command: sudo {{ item }}
+    with_items:
+    - git add .
+    - git commit -m "just an another commit"
+    args:
+      chdir: /home/vagrant/checkboxio
+    become: true
+  - name: delete the target directory
+    file:
+     path: /var/lib/jenkins/workspace/checkboxio_build
+     state: absent
+    become: true
+  - name: Push the changes to both repositories
+    command:  chdir=/home/vagrant/checkboxio {{ item }}
+    with_items:
+    - git push --repo "https://{{ git_username }}:{{ git_password }}@github.com/Madhu-Vamsi/checkbox.io.git"
+    - git push prod master
+    become: true
+  - name: sleep for 100 seconds and continue with play
+    wait_for: timeout=100
+  - name: Configure AWS
+    shell: ansible-playbook -i inventory configure-aws.yml
+    args:
+      chdir: /home/vagrant
+  - name: Deploy Checkbox
+    shell: ansible-playbook -i aws_inventory deploy-checkbox.yml
+    args:
+      chdir: /home/vagrant
+  - name: Configure AWS
+    shell: ansible-playbook -i inventory configure-aws.yml
+    args:
+      chdir: /home/vagrant
+  - name: Change permission of key
+    file:
+      path: /home/vagrant/DeployMilestone.pem
+      mode: 0600
+  - name: Deploy Checkboxio
+    shell: ansible-playbook -i aws_inventory deploy-checkbox.yml
+    args:
+      chdir: /home/vagrant

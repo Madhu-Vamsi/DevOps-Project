@@ -1,0 +1,33 @@
+- job:
+    name: iTrust
+    auth-token: testToken
+    scm:
+      - git:
+          url: https://github.com/Madhu-Vamsi/iTrust2-v4
+    builders:
+          - shell: |
+                  ansible-playbook /file-templates/setup-iTrust-repo.yml -i /file-templates/inventory
+                  cd /var/lib/jenkins/workspace/iTrust/iTrust2
+                  sudo mvn -f pom-data.xml process-test-classes
+                  sudo mvn clean test verify checkstyle:checkstyle -Djetty.port=9999
+    triggers:
+      - pollscm:
+          cron: 'H 23 * * *'
+
+    publishers:
+      - jacoco:
+          exec-pattern: '**/**.exec'
+          class-pattern: '**/classes,**/junit/build/*,**/build'
+          source-pattern: '**/src/main/java,**/src,**/src/java'
+          update-build-status: true
+          inclusion-pattern: '**/*.java,**/*.class'
+                
+      - checkstyle:
+          pattern: '**/checkstyle-result.xml'
+          can-run-on-failed: true
+          healthy: 0
+          unhealthy: 100
+          health-threshold: 'high'
+          thresholds:
+              failed:
+                  total-all: 2      

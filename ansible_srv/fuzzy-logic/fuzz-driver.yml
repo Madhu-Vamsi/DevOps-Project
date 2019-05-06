@@ -1,0 +1,105 @@
+---
+- hosts: jenkins-srv
+  become : yes
+  vars_files:
+    - /ansible_srv/variables.yml
+
+  tasks:
+  - name : Clone the repository
+    git : 
+      repo : 'https://{{ git_forked_repo }}'
+      dest : '/home/vagrant/iTrust2-v4'
+
+  - name: create fuzzer branch
+    command: chdir=/home/vagrant/iTrust2-v4 {{ item }}
+    with_items:
+    - git checkout {{ branch }}
+
+  - name: link cloned itrust repo to bare repo
+    command: git remote add jenkins /home/vagrant/bare-itrust.git
+    args:
+      chdir: /home/vagrant/iTrust2-v4/
+
+  - name: Copy varibles.yml to web_srv
+    copy:
+      src: /ansible_srv/variables.yml
+      dest: /home/vagrant
+
+  - name: Copy fuzz.yml to server
+    copy:
+      src: /ansible_srv/fuzzy-logic/
+      dest: /home/vagrant/
+
+  - name: Copy analysis script to server
+    copy:
+      src: /ansible_srv/fuzzy-logic/testanalysis.py
+      dest: /
+  - name: Copy analysis input files to server
+    copy:
+      src: /ansible_srv/fuzzy-logic/output_files.txt
+      dest: /
+  - name: create target directory
+    file:
+      path: /target_output
+      state: directory
+
+  - name: updates git
+    apt_repository:
+      repo: ppa:git-core/ppa
+      state: present
+      update_cache: yes
+    become: true
+
+  - name: sudo apt get upgrade
+    command: apt-get upgrade
+
+  - name: Install pexpect
+    pip:
+      name: pexpect  
+
+  - name: install latest git
+    expect:
+      responses:
+        Y|n: y
+      command: sudo apt-get install git
+
+  - name: add push options to bare iTrust repo
+    command: git config receive.advertisePushOptions true
+    args:
+      chdir: /home/vagrant/bare-itrust.git
+  - name: Install Numpy
+    pip:
+      name: numpy
+  - name: Install Pandas
+    pip:
+      name: pandas
+  - name: do this 100 times
+    shell: sudo ansible-playbook /home/vagrant/fuzz.yml
+    with_sequence: count=100
+    become: true
+
+  - name: run the python script
+    script: /ansible_srv/fuzzy-logic/testanalysis.py
+    args:
+     executable: python3
+     chdir:  /
+    become: true
+
+  - name: Copy output analysis file to local machine
+    fetch:
+      src: /home/vagrant/output_analysis.txt
+      dest: /ansible_srv/
+      flat: yes
+    become: true
+
+  - name: remove target_output directory
+    file:
+      state: absent
+      path: "/target_output"
+    become: true
+
+  - name: remove itrust
+    file:
+      state: absent
+      path: "/home/vagrant/iTrust2-v4"
+    become: true

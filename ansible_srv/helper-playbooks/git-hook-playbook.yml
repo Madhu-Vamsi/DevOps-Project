@@ -1,0 +1,46 @@
+- hosts: jenkins-srv
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Create the bare repo for checkbox.io
+      command: git init --bare /home/vagrant/bare-checkboxio.git
+      args:
+        creates: /home/vagrant/bare-checkboxio.git/HEAD
+
+    - name: Create the bare repo for iTrust
+      command: git init --bare /home/vagrant/bare-itrust.git
+      args:
+        creates: /home/vagrant/bare-itrust.git/HEAD      
+
+    - name: Place post-receive hook file inside bare-repo - checkbox
+      copy:
+        src: /ansible_srv/hook-checkbox/post-receive
+        dest: /home/vagrant/bare-checkboxio.git/hooks
+      become: true 
+
+    - name: Place post-receive hook file inside bare-repo - itrust
+      shell: |
+                sudo touch /home/vagrant/bare-itrust.git/hooks/post-receive
+      become: true 
+
+    - name: Add Line block - post receive
+      copy:
+        dest: /home/vagrant/bare-itrust.git/hooks/post-receive
+        content: |
+                #!/bin/bash
+                if [[ "$GIT_PUSH_OPTION_COUNT" -eq 0 ]]; then
+                curl http://127.0.0.1:8080/git/notifyCommit?url=https://github.com/Madhu-Vamsi/iTrust2-v4
+                fi
+
+    - name: Changing perm of "post-receive", adding "+x"
+      file: dest=/home/vagrant/bare-checkboxio.git/hooks/post-receive mode=a+x 
+
+    - name: Changing perm of "post-receive", adding "+x"
+      file: dest=/home/vagrant/bare-itrust.git/hooks/post-receive mode=a+x
+
+    - name: link cloned checkbox.io repo to bare repo
+      command: git remote add jenkins /home/vagrant/bare-checkboxio.git
+      args:
+        chdir: /home/vagrant/checkboxio/
+
+

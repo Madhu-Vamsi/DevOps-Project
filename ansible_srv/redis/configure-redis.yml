@@ -1,0 +1,30 @@
+---
+- hosts: all
+  gather_facts: no
+  become : yes
+  vars_files:
+    - /ansible_srv/variables.yml
+  tasks:
+  - name : Update and Upgrade
+    apt :
+      update_cache : yes
+      cache_valid_time : 86400
+      upgrade : yes
+  - name: Run python script to configure AWS instance
+    script: provisionRedisMaster.py
+    args:
+      executable: python3
+  - name: sleep for 70 seconds and continue with play
+    wait_for: timeout=70
+  - name: Change permission of key
+    file:
+      path: /home/vagrant/DeployMilestone.pem
+      mode: 0600
+  - name: Configure master
+    shell: ansible-playbook -i master_inventory configure-redis-master.yml
+    args:
+      chdir: /home/vagrant
+  - name: Configure replica
+    shell: ansible-playbook -i aws_inventory configure-redis-slave.yml
+    args:
+      chdir: /home/vagrant

@@ -1,0 +1,7 @@
+---
+- include: helper-playbooks/ssh-playbook.yml
+- include: helper-playbooks/setup-jenkins.yml
+- include: helper-playbooks/build-apps.yml
+- include: helper-playbooks/checkbox-analysis.yml
+- include: helper-playbooks/git-hook-playbook.yml
+- include: fuzzy-logic/fuzz-driver.yml

@@ -1,0 +1,116 @@
+---
+- hosts: all
+  gather_facts: no
+  become : yes
+  vars_files:
+    - /home/vagrant/variables.yml
+  tasks:
+  - name : Update and Upgrade
+    apt :
+      update_cache : yes
+      cache_valid_time : 86400
+      upgrade : yes
+  - name : Set environment variables 1
+    lineinfile : 
+      path : /etc/environment
+      state : present
+      regex : 'MONGO_PORT={{mongo_port}}'
+      line : 'MONGO_POnvironment variables 3
+    lineinfile :RT={{mongo_port}}'
+  - name : Set environment variables 2
+    lineinfile : 
+      path : /etc/environment
+      state : present
+      regex : 'MONGO_IP={{mongo_ip}}'
+      line : 'MONGO_IP={{mongo_ip}}'
+  - name : Set environment variables 1
+    lineinfile : 
+      path : /etc/environment
+      state : present
+      regex : 'APP_PORT={{app_port}}'
+      line : 'APP_PORT={{app_port}}'    
+  - name : Set e 
+    lineinfile :  
+      path : /etc/environment
+      state : present
+      regex : 'MONGO_USER={{mongo_checkbox_user}}'
+      line : 'MONGO_USER={{mongo_checkbox_user}}'
+  - name : Set environment variables 4
+    lineinfile : 
+      path : /etc/environment
+      state : present
+      regex : 'MONGO_PASSWORD={{mongo_checkbox_password}}'
+      line : 'MONGO_PASSWORD={{mongo_checkbox_password}}'
+  - name : Install nginx
+    apt :
+      name : nginx
+      state : latest
+  - name : Start nginx service
+    service :
+      name : nginx
+      state : started
+  - name : Copy config file
+    template : 
+      src : /home/vagrant/static_site.cfg
+      dest : /etc/nginx/sites-available/static_site.cfg
+      force : no
+  - name: create a symbolic link
+    file:
+      src: /etc/nginx/sites-available/static_site.cfg
+      dest: /etc/nginx/sites-enabled/default
+      state: link
+  - name: restart nginx
+    service:
+      name: nginx
+      state: restarted
+  - name : Import key from MongoDB
+    apt_key :
+      keyserver : hkp://keyserver.ubuntu.com:80
+      id : 0C49F3730359A14518585931BC711F9BA15703C6
+      state : present
+  - name : Add MongoDB repository
+    lineinfile :
+      line : "deb [ arch=amd64,arm64 ] http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.4 multiverse"
+      dest : "/etc/apt/sources.list.d/mongodb-org-3.4.list"
+      state : present
+      create : yes
+  - name : Install MongoDB
+    apt :
+      name : mongodb-org
+      state : present
+      update_cache : yes
+  - name : Start mongodb server
+    systemd : 
+      name : mongod
+      state : started
+      enabled : yes
+  - name: install pip3
+    apt: 
+      name: python3-pip
+      state: present  
+  - name: Install pymongo
+    pip :
+      name: pymongo
+      state: present 
+  - name: Adding mongo db user  
+    mongodb_user:
+      database: admin
+      name: "{{mongo_checkbox_user}}"
+      password: "{{mongo_checkbox_password}}"
+      state: present
+  - name: Creates directory
+    file:
+     path: /var/lib/jenkins/workspace/checkboxio_build/
+     state: directory
+  - name: copy default file to directory
+    copy:
+      src: /home/vagrant/default
+      dest:  /etc/nginx/sites-enabled/
+  - name: copy over the latest code to AWS
+    synchronize:
+      src:  /var/lib/jenkins/workspace/checkboxio_build/
+      dest: /var/lib/jenkins/workspace/checkboxio_build/
+  - name: restart nginx
+    service:
+      name: nginx
+      state: restarted

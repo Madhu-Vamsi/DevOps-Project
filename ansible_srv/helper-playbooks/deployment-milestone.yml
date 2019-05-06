@@ -1,0 +1,109 @@
+---
+- hosts: all
+  gather_facts: no
+  become : yes
+  vars_files:
+    - /ansible_srv/variables.yml
+  tasks:
+  - name: Clone checkboxio git repo into /home/vagrant/
+    git:
+      repo: '{{checkbox_repo}}'
+      dest: /home/vagrant/checkboxio/
+      clone: yes
+      update: yes  
+    become: true
+  - name: Setup production bare repo for iTrust
+    command: git init --bare /home/vagrant/prod-itrust.git
+    args:
+      creates: /home/vagrant/prod-itrust.git/HEAD
+  - name: Place post-receive hook file inside bare-repo - itrust
+    shell: |
+                sudo touch /home/vagrant/prod-itrust.git/hooks/post-receive
+    become: true 
+  - name: Add Line block - post receive
+    copy:
+      dest: /home/vagrant/prod-itrust.git/hooks/post-receive
+      content: |
+                #!/bin/bash
+                curl http://127.0.0.1:8080/git/notifyCommit?url=https://github.com/Madhu-Vamsi/iTrust2-v4
+  - name: Setup production bare repo for Checkboxio
+    command: git init --bare /home/vagrant/prod-checkbox.git
+    args:
+      creates: /home/vagrant/prod-checkbox.git/HEAD
+  - name: Place post-receive hook file inside bare-repo
+    copy:
+      src: /ansible_srv/prod-checkbox-hook/post-receive
+      dest: /home/vagrant/prod-checkbox.git/hooks
+  - name: Copy all deploy files to remote jenkins server
+    copy:
+      src: /ansible_srv/deploy/
+      dest: /home/vagrant
+  - name: Copy all redis files to remote jenkins server
+    copy:
+      src: /ansible_srv/redis/
+      dest: /home/vagrant  
+  - name: Copy vars file on web-srv
+    copy:
+      src: /ansible_srv/variables.yml
+      dest: /home/vagrant/
+  - name: Changing perm of "post-receive", adding "+x"
+    file: dest=/home/vagrant/prod-checkbox.git/hooks/post-receive mode=a+x 
+  - name: Changing perm of "post-receive", adding "+x"
+    file: dest=/home/vagrant/prod-itrust.git/hooks/post-receive mode=a+x
+  - name : Clone the repository
+    git : 
+      repo : 'https://{{ git_forked_repo }}'
+      dest : '/home/vagrant/iTrust2-v4'
+  - name: link cloned itrust repo to bare repo
+    command: git remote add prod /home/vagrant/prod-itrust.git
+    args:
+      chdir: /home/vagrant/iTrust2-v4/
+    ignore_errors: yes
+  - name: link cloned checkbox.io repo to bare repo
+    command: git remote add prod /home/vagrant/prod-checkbox.git
+    args:
+      chdir: /home/vagrant/checkboxio/
+    ignore_errors: yes
+  - name : Set AWS Credentials 
+    lineinfile : 
+      path : /etc/environment
+      state : present
+      regex : 'AWS_ACCESS_KEY_ID={{aws_access_key_id}}'
+      line : 'AWS_ACCESS_KEY_ID={{aws_access_key_id}}'
+  - name : Set AWS Credentials 
+    lineinfile : 
+      path : /etc/environment
+      state : present
+      regex : 'AWS_SECRET_ACCESS_KEY={{aws_secret_access_key}}'
+      line : 'AWS_SECRET_ACCESS_KEY={{aws_secret_access_key}}'
+  - name : Set AWS Credentials 
+    lineinfile : 
+      path : /etc/environment
+      state : present
+      regex : 'ANSIBLE_HOST_KEY_CHECKING=False'
+      line : 'ANSIBLE_HOST_KEY_CHECKING=False'
+  - name : Set environment variables for ansible
+    lineinfile : 
+      path : /etc/environment
+      state : present
+      regex : 'MONGO_PORT={{mongo_port}}'
+      line : 'MONGO_PORT={{mongo_port}}'
+  - name: Install boto3
+    pip:
+      name: boto3
+  - name: Add git username and email credentials
+    command: sudo {{ item }}
+    with_items:
+    - git config user.name "{{ git_username }}"
+    - git config user.email "{{ git_email }}"
+    args:
+      chdir: /home/vagrant/iTrust2-v4
+    become: true
+  - name: Add git username and email credentials
+    command: sudo {{ item }}
+    with_items:
+    - git config user.name "{{ git_username }}"
+    - git config user.email "{{ git_email }}"
+    args:
+      chdir: /home/vagrant/checkboxio
+    become: true   

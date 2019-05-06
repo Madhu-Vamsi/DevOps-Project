@@ -1,0 +1,24 @@
+- hosts: master
+  gather_facts: false
+  become: true
+  vars_files:
+    - /ansible_srv/variables.yml
+  
+  tasks:
+  - name: wait for cluster to be ready before continuing
+    wait_for: timeout=120
+    delegate_to: localhost
+    become: true
+
+  - name: create a container to be deployed
+    shell: kubectl run checkbox-deploy --image='{{ dockerhub_username }}/{{ docker_image_name }}:latest' --port=3002 --replicas=3
+    become: true
+
+  - name: expose the service
+    shell: kubectl expose deployments checkbox-deploy --type=LoadBalancer --name=checkbox-deploy-service
+    become: true
+
+  - name: Replace IP in checkboxio before deploy task
+    wait_for: timeout=300
+    delegate_to: localhost
+    become: true  

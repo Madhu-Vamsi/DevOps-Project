@@ -1,0 +1,75 @@
+---
+- hosts: localhost
+  become: yes
+  vars_files:
+    - /home/vagrant/variables.yml
+  tasks:
+  - name: run the python script
+    script: /home/vagrant/fuzzer.py
+    args:
+     executable: python3 
+    become: true
+
+  - name: delete the target directory
+    file:
+     path: /var/lib/jenkins/workspace/iTrust
+     state: absent
+    become: true
+
+  - name: Add git username and email credentials
+    command: sudo {{ item }}
+    with_items:
+    - git config user.name "{{ git_username }}"
+    - git config user.email "{{ git_email }}"
+    args:
+      chdir: /home/vagrant/iTrust2-v4
+    become: true  
+
+  - name: commit to fuzzer branch
+    command: sudo {{ item }}
+    with_items:
+    - git checkout {{ branch }}
+    - git add .
+    - git commit -m "just an another commit"
+    args:
+      chdir: /home/vagrant/iTrust2-v4
+    become: true
+
+  - name: Push the changes to both repositories
+    command:  chdir=/home/vagrant/iTrust2-v4 {{ item }}
+    with_items:
+    - git push --repo "https://{{ git_username }}:{{ git_password }}@{{ git_forked_repo }}"
+    - git push jenkins {{ branch }}
+    become: true
+
+  - name: wait for test files to be generated before continuing
+    wait_for: timeout=300
+    delegate_to: localhost
+    become: true
+
+  - name: Get number of files in the dir
+    shell: chdir=/target_output {{ item }}
+    with_items:
+    - ls -1 | wc -l > number_of_files.txt
+    become: true
+
+  - name: Read number_of_files.txt
+    shell: cat /target_output/number_of_files.txt
+    register: count
+  
+  - name: Remove number_of_files.txt
+    shell: rm /target_output/number_of_files.txt
+    become: true
+  
+  - name: copy the target dir
+    shell: cp -r /var/lib/jenkins/workspace/iTrust/iTrust2/target /target_output/{{ count.stdout }}
+    become: true
+
+  - name: reset the git head back
+    shell: chdir=/home/vagrant/iTrust2-v4 {{ item }}
+    with_items:
+    - git fetch origin
+    - git reset --hard origin/master
+    - git push --push-option=forcepush --force jenkins {{ branch }}
+    - git push --force --repo "https://{{ git_username }}:{{ git_password }}@{{ git_forked_repo }}"
+    become: true

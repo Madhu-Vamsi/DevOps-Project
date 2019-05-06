@@ -1,0 +1,99 @@
+- hosts: localhost
+  gather_facts: false
+  become: true
+  vars_files:
+    - /ansible_srv/variables.yml
+  
+  environment:
+    KOPS_CLUSTER_NAME: "{{ cluster_name }}"
+    KOPS_STATE_STORE: s3://{{ aws_s3_bucket_name }} 
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key_id }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_access_key }}"
+    AWS_DEFAULT_REGION:  "{{ aws_region_name }}"
+    AWS_DEFAULT_OUTPUT: "{{ aws_output_format }}"
+  
+  tasks:
+  # - name: Install awscli
+  #   pip:
+  #     name: awscli 
+
+  # - name: Install pexpect
+  #   pip:
+  #     name: pexpect  
+
+  # - name: aws configure 
+  #   expect:
+  #     responses:
+  #       'ID': "{{ aws_access_key_id }}"
+  #       'Secret': "{{ aws_secret_access_key }}" 
+  #       'region': "{{ aws_region_name }}"
+  #       'output': "{{ aws_output_format }}" 
+  #     command: aws configure
+    
+  - name: Installing kops + kubectl
+    shell: |
+                   curl -LO https://github.com/kubernetes/kops/releases/download/$(curl -s https://api.github.com/repos/kubernetes/kops/releases/latest | grep tag_name | cut -d '"' -f 4)/kops-linux-amd64
+                   chmod +x kops-linux-amd64
+                   sudo mv kops-linux-amd64 /usr/local/bin/kops    
+                   sudo apt-get update && sudo apt-get install -y apt-transport-https
+                   curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+                   echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
+                   sudo apt-get update
+                   sudo apt-get install -y kubectl
+    become: true
+    
+  - name: Create ssh key pair 
+    expect:
+      responses:
+        'save': '/home/vagrant/.ssh/id_rsa'
+        'passphrase': ''
+      command: ssh-keygen -t rsa -b 2048
+
+  - name: Change private key's access to 600
+    file: dest=/home/vagrant/.ssh/id_rsa mode=600
+
+  - name: Install boto3
+    pip:
+      name: boto3
+
+  - name: create an S3 bucket
+    s3_bucket:
+      name: "{{ aws_s3_bucket_name }}"
+      region: "{{ aws_region_name }}"
+      state: present  
+  
+  - name: Create cluster
+    shell: >
+                 kops create cluster
+                 --node-count=2
+                 --node-size=t2.micro
+                 --master-size=t2.micro
+                 --master-zones=us-east-2b
+                 --zones=us-east-2b
+                 --image=ami-80a898e5
+
+  - name: kops access to public key
+    shell: kops create secret --name {{ cluster_name }}  sshpublickey ubuntu -i ~/.ssh/id_rsa.pub
+    become: true
+    
+  - name: create cluster on ec2
+    shell: kops update cluster --name {{ cluster_name }} --yes
+    become: true
+    
+  - name: wait for cluster to be generated before continuing
+    wait_for: timeout=120
+    delegate_to: localhost
+    become: true
+
+  - name: register the master node's IP address
+    shell: aws ec2 describe-instances --filter Name=tag:k8s.io/role/master,Values=1 --query Reservations[*].Instances[*].PublicIpAddress --output text
+    changed_when: false
+    register: master_ip
+
+  - name: Add host to [nodes] in inventory file
+    blockinfile:
+      path: /ansible_srv/inventory
+      block: |
+              [master]
+              {{ master_ip.stdout }} ansible_ssh_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+      marker: ""

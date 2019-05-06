@@ -1,0 +1,7 @@
+---
+- include: helper-playbooks/create-docker-image.yml
+- include: helper-playbooks/deploy-microservice.yml
+- include: helper-playbooks/deployment-milestone.yml
+- include: helper-playbooks/trigger-iTrust.yml
+- include: helper-playbooks/trigger-checkbox.yml
+- include: redis/configure-redis.yml

@@ -1,0 +1,30 @@
+jenkins_user: jenkins
+jenkins_password: jenkins
+mysql_user: Devops
+mysql_password: jerry
+mongo_admin_password: qwerty
+mongo_checkbox_user: admin
+mongo_checkbox_password: qwerty
+email_username: <insert gmail email id for SMTP connection || csc.dev.2019@gmail.com>
+email_password: <insert email password>
+user_name: Devops_Master
+checkbox_repo: https://github.com/ppvasude/checkbox.io.git
+itrust_repo: https://github.com/Madhu-Vamsi/iTrust2-v4
+mongo_port: 7000
+app_port: 3002
+mongo_ip: 127.0.0.1
+git_password: <Git password>
+git_username: <Git Username>
+git_email: <insert github email id>
+branch: <insert branch name>
+git_forked_repo: github.com/Madhu-Vamsi/iTrust2-v4.git
+aws_access_key_id: <Insert AWS Access key for kubernetes cluster| Deploy | Redis>
+aws_secret_access_key: <Insert AWS Secret Access key for kubernetes cluster | Deploy | Redis>
+aws_region_name: us-east-2
+aws_output_format: json
+cluster_name: checkbox.ms.cluster.k8s.local
+aws_s3_bucket_name: checkbox-kops-state-store
+git_microservice_repo: github.com/ppvasude/checkbox-microservice.git #REMOVE https://
+docker_image_name: checkbox-microservice-image
+dockerhub_username: <Insert dockerhub username>
+dockerhub_password: <Insert dockerhub password>

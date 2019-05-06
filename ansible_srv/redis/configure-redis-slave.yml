@@ -1,0 +1,95 @@
+---
+- hosts: all
+  gather_facts: no
+  become : yes
+  tasks:
+  - name : Update and Upgrade
+    apt :
+      update_cache : yes
+      cache_valid_time : 86400
+      upgrade : yes
+  - name : Install build-essential package
+    shell: apt-get install build-essential -y
+  - name : Install tcl package
+    shell: apt-get install tcl -y
+  - name: Download redis
+    shell: wget http://download.redis.io/redis-stable.tar.gz
+    args:
+      chdir: /tmp
+  - name: Ensure group "redis" exists
+    group:
+      name: redis
+      state: present
+  - name : Install Unzip
+    apt :
+      name : ['unzip', 'tar']
+  - name : Check if file unzipped or not
+    stat :
+      path : /tmp/redis-stable
+    register : unzipped_file
+  - name : Unzip Redis
+    unarchive :
+      src : /tmp/redis-stable.tar.gz
+      dest : /tmp/
+      remote_src : yes
+    when : not unzipped_file.stat.exists
+  - name: Compile binaries 
+    make:
+      chdir: /tmp/redis-stable
+  -  name: Install binaries 
+     make:
+       chdir: /tmp/redis-stable
+       target: install
+  - name: Make directory
+    file:
+      path: /etc/redis
+      state: directory
+  - name: Copy config file
+    copy:
+      src: /home/vagrant/redis.conf
+      dest: /etc/redis
+  - name: Copy service file
+    copy:
+      src: /home/vagrant/redis.service
+      dest: /etc/systemd/system/redis.service
+  - name: Create user
+    user:
+      name: redis
+      system: yes
+      group: redis
+  - name: Make directory
+    file:
+      path: /var/lib/redis
+      state: directory
+  - name: Change ownership
+    file:
+      path: /var/lib/redis
+      owner: redis
+      group: redis
+  - name: Copy war file to webapps
+    copy:
+      src: /iTrust2.war
+      dest: /jetty-distribution-9.4.16.v20190411/webapps/
+      force: yes
+      mode: 770
+  - name: copy ip.txt
+    copy: 
+      src: /home/vagrant/master-ip.txt
+      dest: /
+  - name : read maste ip address
+    shell: cat /master-ip.txt
+    register: master_ip
+  - name : connect it with master ip and port
+    lineinfile:
+     path: /etc/redis/redis.conf
+     regexp: '^# replicaof <masterip> <masterport>'
+     line: 'replicaof {{master_ip.stdout}} 6379 '
+  - name : connect it with master ip and port
+    lineinfile:
+     path: /etc/redis/redis.conf
+     regexp: '^# masterauth <master-password>'
+     line: 'masterauth qwerty'
+  - name: Make sure redis is running
+    systemd:
+      state: started
+      name: redis

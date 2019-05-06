@@ -1,0 +1,79 @@
+---
+- hosts: all
+  gather_facts: no
+  become : yes
+  vars_files:
+    - /home/vagrant/variables.yml
+  tasks:
+  - name : Update and Upgrade
+    apt :
+      update_cache : yes
+      cache_valid_time : 86400
+      upgrade : yes
+  - name : Install Maven
+    apt :
+      name : maven
+      state : present
+  - name : Install openjdk
+    apt :
+      name : openjdk-8-jdk
+      state : present
+  - name : MySQL set root password
+    debconf :
+      name : mysql-server
+      question : mysql-server/root_password
+      value : '{{mysql_password}}'
+      vtype : password
+  - name : Set password again
+    debconf :
+      name : mysql-server
+      question : mysql-server/root_password_again
+      value : '{{mysql_password}}'
+      vtype : password
+  - name : Install Mysql
+    apt :
+      name : mysql-server
+      state : present
+  - name : Install Git
+    apt :
+      name : git
+      state : present
+  - name : Download Jetty
+    get_url :
+      url : https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-distribution/9.4.16.v20190411/jetty-distribution-9.4.16.v20190411.tar.gz
+      dest : /
+  - name : Install Unzip
+    apt :
+      name : ['unzip', 'tar']
+  - name : Check if file unzipped or not
+    stat :
+      path : /jetty-distribution-9.4.16.v20190411
+    register : unzipped_file
+  - name : Unzip jetty
+    unarchive :
+      src : /jetty-distribution-9.4.16.v20190411.tar.gz
+      dest : /
+      remote_src : yes
+    when : not unzipped_file.stat.exists
+  - name: Copy war file to webapps
+    copy:
+      src: /var/lib/jenkins/workspace/iTrust/iTrust2/target/iTrust2.war
+      dest: /jetty-distribution-9.4.16.v20190411/webapps/
+      force: yes
+  - name: Copy jetty.sh
+    copy:
+      src: /jetty-distribution-9.4.16.v20190411/bin/jetty.sh
+      dest: /etc/init.d/jetty.sh
+      remote_src: yes
+  - name: Create jetty variable file
+    copy:
+      dest: /etc/default/jetty
+      content: |
+        JETTY_HOME=/jetty-distribution-9.4.16.v20190411
+  - name: Restart Jetty Service
+    systemd:
+      daemon_reload: yes
+      name: jetty
+      state: restarted
+      enabled: yes
+      masked: no

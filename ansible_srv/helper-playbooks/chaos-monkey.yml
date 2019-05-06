@@ -1,0 +1,58 @@
+- hosts: localhost
+  vars_files:
+    - /ansible_srv/variables.yml
+  gather_facts: false
+  become: true
+  environment:
+         AWS_ACCESS_KEY_ID: "{{ aws_access_key_id }}"
+         AWS_SECRET_ACCESS_KEY: "{{ aws_secret_access_key }}"
+         AWS_DEFAULT_REGION: "{{ aws_region_name }}"
+
+  tasks:
+    - name: install npm
+      apt:
+        name: npm
+        force_apt_get: yes
+        update_cache: yes
+
+    - name: Install aws-sdk package globally.
+      shell: |
+                cd /
+                npm config set bin-links false
+                npm install -g aws-sdk
+                
+      # npm:
+      #   name: aws-sdk
+      #   global: yes
+
+    - name: Set name of cluster in script
+      lineinfile:
+        path: /ansible_srv/chaos_monkey/main.js
+        regexp: '^(var tagVal = )'
+        line: 'var tagVal = "{{ cluster_name }}";'
+
+    - name: Set region of cluster in script
+      lineinfile:
+        path: /ansible_srv/chaos_monkey/main.js
+        regexp: '^(AWS.config.update)'
+        line: 'AWS.config.update({region:"{{ aws_region_name }}"});'    
+
+    - name: Copy main.js to /
+      copy: 
+        remote_src: yes
+        src: /ansible_srv/chaos_monkey/main.js
+        dest: /main.js    
+
+    - name: Run chaos-monkey script
+      shell: |
+                cd /
+                export NODE_PATH=/usr/local/lib/node_modules/
+                export AWS_DEFAULT_REGION={{aws_region_name}}
+                export AWS_SECRET_ACCESS_KEY={{aws_secret_access_key}}
+                export AWS_ACCESS_KEY_ID={{aws_access_key_id}}
+                nodejs main.js 
+      become: false          
+      register: output
+      
+    - name: Print output
+      debug: var=output.stdout_lines

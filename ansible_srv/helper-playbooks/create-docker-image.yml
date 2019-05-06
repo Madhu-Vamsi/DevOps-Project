@@ -1,0 +1,44 @@
+- hosts: localhost
+  vars_files:
+    - /ansible_srv/variables.yml
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: ensure repository key is installed
+      apt_key:
+        id: "58118E89F3A912897C070ADBF76221572C52609D"
+        keyserver: "hkp://p80.pool.sks-keyservers.net:80"
+        state: present
+
+    - name: ensure docker registry is available
+      apt_repository: repo='deb https://apt.dockerproject.org/repo ubuntu-xenial main' state=present
+     
+
+    - name: ensure docker and dependencies are installed
+      apt: name=docker-engine update_cache=yes
+
+    
+    - service: name=docker state=restarted
+
+    - name: create git url, add credentials for microservice
+      lineinfile:
+        path: /ansible_srv/file-templates/Dockerfile
+        regexp: '^(RUN git clone)'
+        line: 'RUN git clone https://{{ git_username }}:{{ git_password}}@{{ git_microservice_repo }}'
+
+    - name: Install docker module dependencies
+      pip:
+        name: docker
+
+    - name: Create Docker image
+      docker_image: 
+        name: "{{ docker_image_name }}"
+        path: /ansible_srv/
+        state: present
+        tag: latest
+    - name: push docker image to hub
+      shell: |
+          sudo docker login -u {{ dockerhub_username }} -p {{ dockerhub_password}}
+          sudo docker tag {{ docker_image_name}} {{ dockerhub_username }}/{{ docker_image_name}}:latest
+          sudo docker push {{ dockerhub_username }}/{{ docker_image_name}}:latest

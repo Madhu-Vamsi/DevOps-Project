@@ -1,0 +1,5 @@
+---
+- include: install-jjb.yml
+- include: setup-checkbox-env.yml
+- include: build-checkbox.yml
+- include: setup-build-iTrust.yml

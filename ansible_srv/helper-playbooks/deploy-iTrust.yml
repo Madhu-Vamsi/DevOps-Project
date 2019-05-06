@@ -1,0 +1,41 @@
+---
+- hosts: all
+  gather_facts: no
+  become : yes
+  vars_files:
+    - /ansible_srv/variables.yml
+  tasks:
+  - name: Run Python script to generate random files
+    script: /ansible_srv/deploy/generateRandomFile.py
+    args:
+      executable: python3
+      chdir: /home/vagrant/
+  - name: commit to fuzzer branch
+    command: sudo {{ item }}
+    with_items:
+    - git add .
+    - git commit -m "just an another commit"
+    args:
+      chdir: /home/vagrant/iTrust2-v4
+    become: true
+  - name: delete the target directory
+    file:
+     path: /var/lib/jenkins/workspace/iTrust
+     state: absent
+    become: true
+  - name: Push the changes to both repositories
+    command:  chdir=/home/vagrant/iTrust2-v4 {{ item }}
+    with_items:
+    - git push --repo "https://{{ git_username }}:{{ git_password }}@{{ git_forked_repo }}"
+    - git push prod master
+    become: true
+  - name: sleep for 240 seconds and continue with play
+    wait_for: timeout=240
+  - name: Configure AWS
+    shell: ansible-playbook -i inventory configure-aws.yml
+    args:
+      chdir: /home/vagrant
+  - name: Deploy iTrust
+    shell: ansible-playbook -i aws_inventory deploy-iTrust.yml
+    args:
+      chdir: /home/vagrant

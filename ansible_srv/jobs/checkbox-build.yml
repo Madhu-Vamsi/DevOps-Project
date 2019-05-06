@@ -1,0 +1,23 @@
+- job:
+    name: checkboxio_build
+    auth-token: testToken
+    scm:
+      - git:
+          url: 'git_url'
+    builders:
+      - shell: |
+                  cd /var/lib/jenkins/workspace/checkboxio_build/server-side/site
+                  npm install
+                  npm test
+                  node analysis.js 
+                  jsinspect /var/lib/jenkins/workspace/checkboxio_build/server-side/site || true
+    triggers:
+      - pollscm:
+          cron: 'H/15 * * * *'
+
+    publishers:
+      - text-finder:
+          regexp: ".*(?i)failure.*"
+          also-check-console-output: true
+          succeed-if-found: false
+          unstable-if-found: false      

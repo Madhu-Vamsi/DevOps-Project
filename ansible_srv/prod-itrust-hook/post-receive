@@ -1,0 +1,5 @@
+#!/bin/bash
+echo hello
+cd /home/vagrant/
+ansible-playbook -i inventory configure-aws.yml
+ansible-playbook -i aws_inventory deploy-iTrust.yml
